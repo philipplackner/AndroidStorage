@@ -1,6 +1,5 @@
 package com.plcoding.androidstorage
 
-import android.graphics.Bitmap
 import android.net.Uri
 
 data class SharedStoragePhoto(
@@ -8,5 +7,6 @@ data class SharedStoragePhoto(
     val name: String,
     val width: Int,
     val height: Int,
-    val contentUri: Uri
+    val contentUri: Uri,
+    val dateAdded: Int
 )
