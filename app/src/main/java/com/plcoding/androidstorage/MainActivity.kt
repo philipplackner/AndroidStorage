@@ -9,6 +9,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
@@ -55,11 +57,19 @@ class MainActivity : AppCompatActivity() {
                 val isDeleteSuccess = deletePhotoFromInternalStorage(it.name)
                 if (isDeleteSuccess) {
                     loadDataIntoInternalStorageAdapter()
-                    Toast.makeText(this@MainActivity, "Picture delete successfully", Toast.LENGTH_SHORT)
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Picture delete successfully",
+                        Toast.LENGTH_SHORT
+                    )
                         .show()
                 } else
-                    Toast.makeText(this@MainActivity, "Failed to delete picture", Toast.LENGTH_SHORT)
-                        .show() }
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Failed to delete picture",
+                        Toast.LENGTH_SHORT
+                    ).show()
+            }
         }
 
         mSharedPhotoAdapter = SharedPhotoAdapter {
@@ -93,26 +103,37 @@ class MainActivity : AppCompatActivity() {
 
         val takePicture =
             registerForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
-               lifecycleScope.launch{
-                   bitmap?.let {
-                       val isPrivate = mBinding.switchPrivate.isChecked
+                lifecycleScope.launch {
+                    bitmap?.let {
+                        val isPrivate = mBinding.switchPrivate.isChecked
 
-                       val isSaveSuccessfully = when {
-                           isPrivate -> saveBitmapIntoInternalStorage(bitmap)
-                           writePermissionGranted -> saveBitmapIntoExternalStorage(bitmap)
-                           else -> false
-                       }
+                        val isSaveSuccessfully = when {
+                            isPrivate -> saveBitmapIntoInternalStorage(bitmap)
+                            writePermissionGranted -> saveBitmapIntoExternalStorage(bitmap)
+                            else -> false
+                        }
 
-                       if (isSaveSuccessfully) {
-                           loadDataIntoInternalStorageAdapter()
-                           Toast.makeText(this@MainActivity, "Picture saved successfully", Toast.LENGTH_SHORT)
-                               .show()
-                       } else
-                           Toast.makeText(this@MainActivity, "Failed to save picture", Toast.LENGTH_SHORT)
-                               .show()
+                        if (isSaveSuccessfully) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Picture saved successfully",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Failed to save picture",
+                                Toast.LENGTH_SHORT
+                            ).show()
 
-                   }
-               }
+
+                        if (isPrivate) {
+                            loadDataIntoInternalStorageAdapter()
+                        } else {
+                            loadDataIntoSharedStorageAdapter()
+                        }
+                    }
+                }
             }
 
         mBinding.btnTakePhoto.setOnClickListener {
@@ -127,16 +148,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initContentObserver() {
-        mContentObserver =  object : ContentObserver(null) {
+        mContentObserver = object : ContentObserver(null) {
             override fun onChange(selfChange: Boolean) {
-                if(readPermissionGranted){
+                if (selfChange && readPermissionGranted) {
                     loadDataIntoSharedStorageAdapter()
                 }
             }
         }
 
         // register to content observer for listening any changes made at image collection on shared storage.
-        contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,true,mContentObserver)
+        contentResolver.registerContentObserver(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            true,
+            mContentObserver
+        )
     }
 
     /**
@@ -164,7 +189,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadDataIntoSharedStorageAdapter() {
         lifecycleScope.launch {
-            val pictures = getSharedStorageImages()
+            val pictures = withContext(Dispatchers.IO) {
+                getSharedStorageImages()
+            }
             mSharedPhotoAdapter.submitList(pictures)
         }
     }
@@ -240,55 +267,57 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun getSharedStorageImages(): List<SharedStoragePhoto> {
-        return withContext(Dispatchers.IO) {
+    private fun getSharedStorageImages(): List<SharedStoragePhoto> {
+        val collection = isSDK29AndUp {
+            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        } ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 
-            val collection = isSDK29AndUp {
-                MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-            } ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT,
+        )
 
-            val projection = arrayOf(
-                MediaStore.Images.Media._ID,
-                MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.WIDTH,
-                MediaStore.Images.Media.HEIGHT,
-            )
+        val sharedPhotosList = mutableListOf<SharedStoragePhoto>()
 
-            val sharedPhotosList = mutableListOf<SharedStoragePhoto>()
+        contentResolver.query(
+            collection,
+            projection,
+            null,
+            null,
+            "${MediaStore.Images.Media.DISPLAY_NAME} ASC"
+        )?.use { cursor ->
+            val idColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+            val displayNameColumnIndex =
+                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+            val widthColumnIndex =
+                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
+            val heightColumnIndex =
+                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
 
-            contentResolver.query(
-                collection,
-                projection,
-                null,
-                null,
-                "${MediaStore.Images.Media.DISPLAY_NAME} ASC"
-            )?.use { cursor ->
-                val idColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-                val displayNameColumnIndex =
-                    cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-                val widthColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
-                val heightColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idColumnIndex)
+                val displayName = cursor.getString(displayNameColumnIndex)
+                val width = cursor.getInt(widthColumnIndex)
+                val height = cursor.getInt(heightColumnIndex)
+                val imageUri = ContentUris.withAppendedId(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    id
+                )
 
-                while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idColumnIndex)
-                    val displayName = cursor.getString(displayNameColumnIndex)
-                    val width = cursor.getInt(widthColumnIndex)
-                    val height = cursor.getInt(heightColumnIndex)
-                    val imageUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-
-                    sharedPhotosList.add(
-                        SharedStoragePhoto(
-                            id,
-                            displayName,
-                            width,
-                            height,
-                            imageUri
-                        )
+                sharedPhotosList.add(
+                    SharedStoragePhoto(
+                        id,
+                        displayName,
+                        width,
+                        height,
+                        imageUri
                     )
-                }
-                sharedPhotosList.toList()
-            } ?: listOf()
+                )
+            }
         }
+        return sharedPhotosList.toList()
     }
 
 
