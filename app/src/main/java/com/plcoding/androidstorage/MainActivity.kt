@@ -23,9 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.plcoding.androidstorage.databinding.ActivityMainBinding
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import java.io.IOException
 import java.util.*
 
@@ -75,10 +73,6 @@ class MainActivity : AppCompatActivity() {
         mSharedPhotoAdapter = SharedPhotoAdapter {
             // todo : delete image
         }
-
-        setUpSharedStorageRecyclerView()
-
-        initContentObserver()
 
         mPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -140,11 +134,16 @@ class MainActivity : AppCompatActivity() {
             takePicture.launch()
         }
 
+
+        initContentObserver()
+
         setUpInternalStorageRecyclerView()
+
+        setUpSharedStorageRecyclerView()
 
         loadDataIntoInternalStorageAdapter()
 
-//        loadDataIntoSharedStorageAdapter()
+        loadDataIntoSharedStorageAdapter()
     }
 
     private fun initContentObserver() {
@@ -289,14 +288,13 @@ class MainActivity : AppCompatActivity() {
             "${MediaStore.Images.Media.DISPLAY_NAME} ASC"
         )?.use { cursor ->
             val idColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-            val displayNameColumnIndex =
-                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-            val widthColumnIndex =
-                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
-            val heightColumnIndex =
-                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
+            val displayNameColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+            val widthColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
+            val heightColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
 
-            while (cursor.moveToNext()) {
+            var count = 20
+
+            while (cursor.moveToNext() && count-- >= 0) {
                 val id = cursor.getLong(idColumnIndex)
                 val displayName = cursor.getString(displayNameColumnIndex)
                 val width = cursor.getInt(widthColumnIndex)
@@ -315,6 +313,7 @@ class MainActivity : AppCompatActivity() {
                         imageUri
                     )
                 )
+                Log.i(TAG, "getSharedStorageImages: $displayName")
             }
         }
         return sharedPhotosList.toList()

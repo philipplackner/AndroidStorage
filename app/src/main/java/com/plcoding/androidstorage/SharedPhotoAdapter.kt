@@ -6,20 +6,31 @@ import androidx.constraintlayout.widget.ConstraintSet
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.plcoding.androidstorage.databinding.ItemPhotoBinding
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import java.io.File
 
 class SharedPhotoAdapter(
     private val onPhotoClick: (SharedStoragePhoto) -> Unit
 ) : ListAdapter<SharedStoragePhoto, SharedPhotoAdapter.PhotoViewHolder>(Companion) {
 
-    inner class PhotoViewHolder(val binding: ItemPhotoBinding): RecyclerView.ViewHolder(binding.root)
+    inner class PhotoViewHolder(val binding: ItemPhotoBinding) :
+        RecyclerView.ViewHolder(binding.root)
 
     companion object : DiffUtil.ItemCallback<SharedStoragePhoto>() {
-        override fun areItemsTheSame(oldItem: SharedStoragePhoto, newItem: SharedStoragePhoto): Boolean {
+        override fun areItemsTheSame(
+            oldItem: SharedStoragePhoto,
+            newItem: SharedStoragePhoto
+        ): Boolean {
             return oldItem.id == newItem.id
         }
 
-        override fun areContentsTheSame(oldItem: SharedStoragePhoto, newItem: SharedStoragePhoto): Boolean {
+        override fun areContentsTheSame(
+            oldItem: SharedStoragePhoto,
+            newItem: SharedStoragePhoto
+        ): Boolean {
             return oldItem == newItem
         }
     }
@@ -36,20 +47,20 @@ class SharedPhotoAdapter(
 
     override fun onBindViewHolder(holder: PhotoViewHolder, position: Int) {
         val photo = currentList[position]
-        holder.binding.apply {
-            ivPhoto.setImageURI(photo.contentUri)
+            holder.binding.apply {
+                ivPhoto.setImageURI(photo.contentUri)
 
-            val aspectRatio = photo.width.toFloat() / photo.height.toFloat()
-            ConstraintSet().apply {
-                clone(root)
-                setDimensionRatio(ivPhoto.id, aspectRatio.toString())
-                applyTo(root)
-            }
+                val aspectRatio = photo.width.toFloat() / photo.height.toFloat()
+                ConstraintSet().apply {
+                    clone(root)
+                    setDimensionRatio(ivPhoto.id, aspectRatio.toString())
+                    applyTo(root)
+                }
 
-            ivPhoto.setOnLongClickListener {
-                onPhotoClick(photo)
-                true
+                ivPhoto.setOnLongClickListener {
+                    onPhotoClick(photo)
+                    true
+                }
             }
-        }
     }
 }
