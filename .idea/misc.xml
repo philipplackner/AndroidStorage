@@ -3,6 +3,9 @@
   <component name="DesignSurface">
     <option name="filePathToZoomLevelMap">
       <map>
+        <entry key="..\:/Android Projects/AndroidStorage/app/src/main/res/drawable-v24/ic_baseline_photo_camera_24.xml" value="0.1435" />
+        <entry key="..\:/Android Projects/AndroidStorage/app/src/main/res/layout/activity_main.xml" value="0.19947916666666668" />
+        <entry key="..\:/Android Projects/AndroidStorage/app/src/main/res/layout/item_loading.xml" value="0.19947916666666668" />
         <entry key="..\:/Android Projects/AndroidStorage/app/src/main/res/layout/item_photo.xml" value="0.19947916666666668" />
       </map>
     </option>

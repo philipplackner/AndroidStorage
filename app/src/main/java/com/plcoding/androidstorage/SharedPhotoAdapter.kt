@@ -1,66 +1,82 @@
 package com.plcoding.androidstorage
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
+import com.plcoding.androidstorage.databinding.ItemLoadingBinding
 import com.plcoding.androidstorage.databinding.ItemPhotoBinding
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import java.io.File
+import java.lang.IllegalArgumentException
 
 class SharedPhotoAdapter(
     private val onPhotoClick: (SharedStoragePhoto) -> Unit
-) : ListAdapter<SharedStoragePhoto, SharedPhotoAdapter.PhotoViewHolder>(Companion) {
+) : ListAdapter<SharedStoragePhoto, BaseViewHolder>(sharePhotoDiffUtil) {
 
-    inner class PhotoViewHolder(val binding: ItemPhotoBinding) :
-        RecyclerView.ViewHolder(binding.root)
-
-    companion object : DiffUtil.ItemCallback<SharedStoragePhoto>() {
-        override fun areItemsTheSame(
-            oldItem: SharedStoragePhoto,
-            newItem: SharedStoragePhoto
-        ): Boolean {
-            return oldItem.id == newItem.id
-        }
-
-        override fun areContentsTheSame(
-            oldItem: SharedStoragePhoto,
-            newItem: SharedStoragePhoto
-        ): Boolean {
-            return oldItem == newItem
-        }
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PhotoViewHolder {
-        return PhotoViewHolder(
-            ItemPhotoBinding.inflate(
-                LayoutInflater.from(parent.context),
-                parent,
-                false
-            )
-        )
-    }
-
-    override fun onBindViewHolder(holder: PhotoViewHolder, position: Int) {
-        val photo = currentList[position]
-            holder.binding.apply {
-                ivPhoto.setImageURI(photo.contentUri)
-
-                val aspectRatio = photo.width.toFloat() / photo.height.toFloat()
-                ConstraintSet().apply {
-                    clone(root)
-                    setDimensionRatio(ivPhoto.id, aspectRatio.toString())
-                    applyTo(root)
-                }
-
-                ivPhoto.setOnLongClickListener {
-                    onPhotoClick(photo)
-                    true
-                }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BaseViewHolder {
+        return when (viewType) {
+            R.layout.item_photo -> {
+                BaseViewHolder.ImageViewHolder(
+                    ItemPhotoBinding.inflate(
+                        LayoutInflater.from(parent.context),
+                        parent,
+                        false
+                    )
+                )
             }
+
+            R.layout.item_loading -> {
+                BaseViewHolder.ProgressViewHolder(
+                    ItemLoadingBinding.inflate(
+                        LayoutInflater.from(
+                            parent.context
+                        ), parent, false
+                    )
+                )
+            }
+            else -> throw IllegalArgumentException("Invalid ViewHolder type provided")
+        }
+    }
+
+    override fun onBindViewHolder(holder: BaseViewHolder, position: Int) {
+        val item = currentList[position]
+        when(holder) {
+            is BaseViewHolder.ImageViewHolder -> holder.bind(item,onPhotoClick)
+            is BaseViewHolder.ProgressViewHolder -> { /* No operation */
+                Log.i("SharedPhotoAdapter", "onBindViewHolder: ProgressViewholder")
+            }
+        }
+    }
+
+    override fun getItemCount(): Int {
+        return currentList.size
+    }
+
+    override fun getItemViewType(position: Int): Int {
+        return if(currentList[position] == null) {
+            R.layout.item_loading  // if current element is last element then show loading view
+        } else {
+            R.layout.item_photo // if current element is not last element then continue showing images.
+        }
+    }
+
+    companion object {
+        val sharePhotoDiffUtil = object : DiffUtil.ItemCallback<SharedStoragePhoto>() {
+            override fun areItemsTheSame(
+                oldItem: SharedStoragePhoto,
+                newItem: SharedStoragePhoto
+            ): Boolean {
+                return oldItem.id == newItem.id
+            }
+
+            override fun areContentsTheSame(
+                oldItem: SharedStoragePhoto,
+                newItem: SharedStoragePhoto
+            ): Boolean {
+                return oldItem == newItem
+            }
+        }
     }
 }
