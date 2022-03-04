@@ -44,9 +44,7 @@ class SharedPhotoAdapter(
         val item = currentList[position]
         when(holder) {
             is BaseViewHolder.ImageViewHolder -> holder.bind(item,onPhotoClick)
-            is BaseViewHolder.ProgressViewHolder -> { /* No operation */
-                Log.i("SharedPhotoAdapter", "onBindViewHolder: ProgressViewholder")
-            }
+            is BaseViewHolder.ProgressViewHolder -> { /* No operation */ }
         }
     }
 
@@ -55,7 +53,7 @@ class SharedPhotoAdapter(
     }
 
     override fun getItemViewType(position: Int): Int {
-        return if(currentList[position] == null) {
+        return if(position == currentList.size - 1) {
             R.layout.item_loading  // if current element is last element then show loading view
         } else {
             R.layout.item_photo // if current element is not last element then continue showing images.

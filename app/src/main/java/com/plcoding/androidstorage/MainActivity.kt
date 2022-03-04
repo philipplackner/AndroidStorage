@@ -21,10 +21,14 @@ import androidx.activity.result.launch
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.plcoding.androidstorage.databinding.ActivityMainBinding
+import com.plcoding.androidstorage.pagination.PaginationScrollListener
+import com.plcoding.androidstorage.pagination.PaginationScrollListener.Companion.PAGE_SIZE
+import com.plcoding.androidstorage.pagination.PaginationScrollListener.Companion.PAGE_START
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,6 +54,19 @@ class MainActivity : AppCompatActivity() {
     private var writePermissionGranted = false
 
     private var mDeleteContentUri: Uri? = null
+
+    // pagination vars
+    private var currentPage = PAGE_START
+
+    private var currentItemCount = currentPage * PAGE_SIZE
+
+    private var totalPage = 40
+
+    private var isLastPage = false
+
+    private var isLoading = false
+
+    private var sharedPhotosList = mutableListOf<SharedStoragePhoto>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -171,6 +188,8 @@ class MainActivity : AppCompatActivity() {
             takePicture.launch()
         }
 
+        setupSwipeRefreshListener()
+
         initContentObserver()
 
         setUpInternalStorageRecyclerView()
@@ -180,6 +199,18 @@ class MainActivity : AppCompatActivity() {
         loadDataIntoInternalStorageAdapter()
 
         loadDataIntoSharedStorageAdapter()
+    }
+
+    private fun setupSwipeRefreshListener() {
+        mBinding.swipeRefreshLayout.setOnRefreshListener {
+            currentPage = PAGE_START
+            currentItemCount = currentPage
+            isLastPage = false
+            isLoading = false
+            sharedPhotosList = emptyList<SharedStoragePhoto>().toMutableList()
+            mBinding.swipeRefreshLayout.isRefreshing = false
+            loadDataIntoSharedStorageAdapter()
+        }
     }
 
     private fun initContentObserver() {
@@ -203,8 +234,23 @@ class MainActivity : AppCompatActivity() {
      * set up recyclerview
      */
     private fun setUpSharedStorageRecyclerView() = mBinding.rvPublicPhotos.apply {
+        val layoutManager = GridLayoutManager(this@MainActivity, 3)
+
         adapter = mSharedPhotoAdapter
-        layoutManager = StaggeredGridLayoutManager(3, RecyclerView.VERTICAL)
+
+        this.layoutManager = layoutManager
+
+        this.addOnScrollListener(object :
+            PaginationScrollListener(layoutManager) {
+            override fun loadMoreItems() {
+                currentItemCount = currentPage++ * PAGE_SIZE
+                loadDataIntoSharedStorageAdapter()
+            }
+
+            override fun isLoading() = isLoading
+
+            override fun isLastPage() = isLastPage
+        })
     }
 
     private fun setUpInternalStorageRecyclerView() = mBinding.rvPrivatePhotos.apply {
@@ -224,10 +270,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadDataIntoSharedStorageAdapter() {
         lifecycleScope.launch {
-            val pictures = withContext(Dispatchers.IO) {
-                getSharedStorageImages()
+            isLoading = true
+            if (currentPage > totalPage) {
+                isLastPage = true
+            } else {
+                val pictures = withContext(Dispatchers.IO) {
+                    getSharedStorageImages()
+                }
+                mSharedPhotoAdapter.submitList(pictures)
+                Log.i(TAG, "loadDataIntoSharedStorageAdapter: ${pictures.size}")
             }
-            mSharedPhotoAdapter.submitList(pictures)
+
+            isLoading = false
         }
     }
 
@@ -314,14 +368,12 @@ class MainActivity : AppCompatActivity() {
             MediaStore.Images.Media.HEIGHT,
         )
 
-        val sharedPhotosList = mutableListOf<SharedStoragePhoto>()
-
         contentResolver.query(
             collection,
             projection,
             null,
             null,
-            "${MediaStore.Images.Media.DISPLAY_NAME} ASC"
+            "${MediaStore.Images.Media.DISPLAY_NAME} ASC limit $PAGE_SIZE offset $currentItemCount"
         )?.use { cursor ->
             val idColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
             val displayNameColumnIndex =
@@ -329,9 +381,9 @@ class MainActivity : AppCompatActivity() {
             val widthColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
             val heightColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
 
-            var count = 20
+            var count = currentItemCount
 
-            while (cursor.moveToNext() && count-- >= 0) {
+            while (cursor.moveToNext() ) {
                 val id = cursor.getLong(idColumnIndex)
                 val displayName = cursor.getString(displayNameColumnIndex)
                 val width = cursor.getInt(widthColumnIndex)
